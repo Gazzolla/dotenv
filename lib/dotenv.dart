@@ -3,6 +3,9 @@ import 'package:universal_io/io.dart';
 
 import 'parser.dart';
 
+// Conditional imports for web support
+import 'dotenv_io.dart' if (dart.library.html) 'dotenv_web.dart' as platform;
+
 /// Loads key-value pairs from a file into a [Map<String, String>].
 ///
 /// The parser will attempt to handle simple variable substitution,
@@ -69,8 +72,7 @@ class DotEnv {
   /// and the value is non-empty.  See [isDefined].
   ///
   /// Otherwise, calls [orElse] and returns the value.
-  String getOrElse(String key, String Function() orElse) =>
-      isDefined(key) ? _map[key]! : orElse();
+  String getOrElse(String key, String Function() orElse) => isDefined(key) ? _map[key]! : orElse();
 
   /// True if [key] has a nonempty value in the underlying map.
   ///
@@ -85,25 +87,19 @@ class DotEnv {
   /// Parses environment variables from each path in [filenames], and adds them
   /// to the underlying [Map].
   ///
+  /// Automatically detects the platform (web or non-web) and loads files accordingly.
+  /// On web, files are loaded via HTTP. On other platforms, files are loaded from the file system.
+  ///
   /// Logs to [stderr] if any file does not exist; see [quiet].
   void load([
     Iterable<String> filenames = const ['.env'],
     Parser psr = const Parser(),
   ]) {
     for (var filename in filenames) {
-      var f = File.fromUri(Uri.file(filename));
-      var lines = _verify(f);
+      var lines = platform.loadFile(filename, quiet);
       _map.addAll(psr.parse(lines));
     }
   }
 
   void _addPlatformEnvironment() => _map.addAll(Platform.environment);
-
-  List<String> _verify(File f) {
-    if (!f.existsSync()) {
-      if (!quiet) stderr.writeln('[dotenv] Load failed: file not found: $f');
-      return [];
-    }
-    return f.readAsLinesSync();
-  }
 }
