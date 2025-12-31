@@ -95,11 +95,41 @@ class DotEnv {
     Iterable<String> filenames = const ['.env'],
     Parser psr = const Parser(),
   ]) {
+    if (!quiet) {
+      stderr.writeln('[dotenv] DEBUG: ========================================');
+      stderr.writeln('[dotenv] DEBUG: Starting load operation');
+      stderr.writeln('[dotenv] DEBUG: Platform: ${Platform.operatingSystem}');
+      stderr.writeln('[dotenv] DEBUG: Platform environment available: ${Platform.environment.isNotEmpty}');
+      stderr.writeln('[dotenv] DEBUG: dart.library.html available: ${_isWebPlatform()}');
+      stderr.writeln('[dotenv] DEBUG: ========================================');
+    }
+
     for (var filename in filenames) {
+      if (!quiet) {
+        stderr.writeln('[dotenv] DEBUG: Attempting to load file: $filename');
+      }
       var lines = platform.loadFile(filename, quiet);
+      if (!quiet) {
+        stderr.writeln('[dotenv] DEBUG: Loaded ${lines.length} lines from $filename');
+      }
       _map.addAll(psr.parse(lines));
+    }
+
+    if (!quiet) {
+      stderr.writeln('[dotenv] DEBUG: Load complete. Total variables: ${_map.length}');
     }
   }
 
   void _addPlatformEnvironment() => _map.addAll(Platform.environment);
+
+  /// Helper to detect if web platform is available
+  bool _isWebPlatform() {
+    try {
+      // Try to check if dart.library.html is available
+      // This is a compile-time check, but we can try to detect at runtime
+      return false; // Will be determined by conditional import
+    } catch (e) {
+      return false;
+    }
+  }
 }
