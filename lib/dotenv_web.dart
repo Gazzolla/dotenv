@@ -1,55 +1,61 @@
 import 'dart:js_interop';
+// ignore: uri_does_not_exist
 import 'package:web/web.dart' as web;
-import 'package:universal_io/io.dart';
+
+/// Writes to print on web platforms (stderr is not available)
+void _safeStderrWriteln(String message) {
+  // On web, stderr is not available, use print directly
+  print(message);
+}
 
 /// Platform-specific implementation for web platforms.
 /// Loads files via HTTP request using a synchronous approach.
 /// On web, files must be accessible via HTTP (e.g., in web/ directory).
 List<String> loadFile(String filename, bool quiet) {
   if (!quiet) {
-    stderr.writeln('[dotenv] DEBUG: ========================================');
-    stderr.writeln('[dotenv] DEBUG: Using WEB implementation (dotenv_web.dart)');
-    stderr.writeln('[dotenv] DEBUG: File path: $filename');
-    stderr.writeln('[dotenv] DEBUG: ========================================');
+    _safeStderrWriteln('[dotenv] DEBUG: ========================================');
+    _safeStderrWriteln('[dotenv] DEBUG: Using WEB implementation (dotenv_web.dart)');
+    _safeStderrWriteln('[dotenv] DEBUG: File path: $filename');
+    _safeStderrWriteln('[dotenv] DEBUG: ========================================');
   }
-  
+
   try {
     // Use a completer to make async operation appear synchronous
     List<String>? result;
     bool completed = false;
 
     if (!quiet) {
-      stderr.writeln('[dotenv] DEBUG: Starting HTTP fetch for: $filename');
+      _safeStderrWriteln('[dotenv] DEBUG: Starting HTTP fetch for: $filename');
     }
     final promise = web.window.fetch(filename.toJS);
     promise.toDart.then((response) {
       if (!quiet) {
-        stderr.writeln('[dotenv] DEBUG: HTTP response received');
+        _safeStderrWriteln('[dotenv] DEBUG: HTTP response received');
       }
       return response.text().toDart;
     }).then((content) {
       final contentStr = content.toDart;
       if (!quiet) {
-        stderr.writeln('[dotenv] DEBUG: Content length: ${contentStr.length}');
+        _safeStderrWriteln('[dotenv] DEBUG: Content length: ${contentStr.length}');
       }
       if (contentStr.isEmpty) {
-        if (!quiet) stderr.writeln('[dotenv] Load failed: file is empty: $filename');
+        if (!quiet) _safeStderrWriteln('[dotenv] Load failed: file is empty: $filename');
         result = [];
       } else {
         result = contentStr.split('\n');
         if (!quiet) {
-          stderr.writeln('[dotenv] DEBUG: Split into ${result?.length ?? 0} lines');
+          _safeStderrWriteln('[dotenv] DEBUG: Split into ${result?.length ?? 0} lines');
         }
       }
       completed = true;
     }).catchError((e) {
       if (!quiet) {
-        stderr.writeln('[dotenv] DEBUG: HTTP fetch error: $e');
+        _safeStderrWriteln('[dotenv] DEBUG: HTTP fetch error: $e');
       }
       if (!quiet) {
-        stderr.writeln('[dotenv] Load failed: $e');
-        stderr.writeln('[dotenv] On web, ensure .env is in your web/ directory and accessible via HTTP');
-        stderr.writeln('[dotenv] Alternative: Use build-time environment variables with --dart-define');
+        _safeStderrWriteln('[dotenv] Load failed: $e');
+        _safeStderrWriteln('[dotenv] On web, ensure .env is in your web/ directory and accessible via HTTP');
+        _safeStderrWriteln('[dotenv] Alternative: Use build-time environment variables with --dart-define');
       }
       result = [];
       completed = true;
@@ -70,19 +76,19 @@ List<String> loadFile(String filename, bool quiet) {
 
     if (!completed) {
       if (!quiet) {
-        stderr.writeln('[dotenv] Load timeout: could not load $filename within 5 seconds');
+        _safeStderrWriteln('[dotenv] Load timeout: could not load $filename within 5 seconds');
       }
       return [];
     }
 
     if (!quiet) {
-      stderr.writeln('[dotenv] DEBUG: HTTP fetch completed. Result: ${result?.length ?? 0} lines');
+      _safeStderrWriteln('[dotenv] DEBUG: HTTP fetch completed. Result: ${result?.length ?? 0} lines');
     }
     return result ?? [];
   } catch (e) {
     if (!quiet) {
-      stderr.writeln('[dotenv] Load failed: $e');
-      stderr.writeln('[dotenv] On web, .env files must be served as static assets in the web/ directory');
+      _safeStderrWriteln('[dotenv] Load failed: $e');
+      _safeStderrWriteln('[dotenv] On web, .env files must be served as static assets in the web/ directory');
     }
     return [];
   }
