@@ -2,4 +2,4 @@
 // Do not edit manually.
 
 /// Package version from pubspec.yaml
-const String packageVersion = '4.3.6';
+const String packageVersion = '4.3.7';

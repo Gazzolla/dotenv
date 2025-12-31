@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:js_interop';
 // ignore: uri_does_not_exist
 import 'package:web/web.dart' as web;
@@ -49,17 +50,24 @@ List<String> loadFile(String filename, bool quiet) {
     pathsToTry.add(filename);
   }
 
+  if (!quiet) {
+    _safeStderrWriteln('[dotenv] DEBUG: ========================================');
+    _safeStderrWriteln('[dotenv] DEBUG: Using WEB implementation (dotenv_web.dart)');
+    _safeStderrWriteln('[dotenv] DEBUG: Will try paths: ${pathsToTry.join(", ")}');
+    _safeStderrWriteln('[dotenv] DEBUG: ========================================');
+  }
+
   for (var path in pathsToTry) {
     final absolutePath = _getAbsolutePath(path);
     if (!quiet) {
-      _safeStderrWriteln('[dotenv] DEBUG: ========================================');
-      _safeStderrWriteln('[dotenv] DEBUG: Using WEB implementation (dotenv_web.dart)');
       _safeStderrWriteln('[dotenv] DEBUG: Attempting to load from: $absolutePath');
-      _safeStderrWriteln('[dotenv] DEBUG: ========================================');
     }
 
     final result = _tryLoadFile(absolutePath, path, quiet);
-    if (result != null) {
+    if (result != null && result.isNotEmpty) {
+      if (!quiet) {
+        _safeStderrWriteln('[dotenv] DEBUG: Successfully loaded from: $absolutePath');
+      }
       return result;
     }
   }
@@ -137,21 +145,33 @@ List<String>? _tryLoadFile(String absolutePath, String originalPath, bool quiet)
 
     // Wait for the async operation to complete
     // This is a blocking wait that works in web context
-    // Use a longer timeout and better event loop processing
-    // The key is to use very short waits to allow the event loop to process
+    // The key is to use scheduleMicrotask to yield to event loop
+    // This allows fetch callbacks to be processed
     final timeoutMs = 10000; // 10 seconds timeout
     final startTime = web.window.performance.now();
     int checkCount = 0;
-    const maxChecks = 2000; // Maximum number of checks
+    const maxChecks = 20000; // Maximum number of checks
     
     while (!completed && checkCount < maxChecks) {
       checkCount++;
       
-      // Use a very short wait (1ms) to allow event loop to process callbacks
-      // This is critical - longer waits block the event loop
-      final waitStart = web.window.performance.now();
-      while ((web.window.performance.now() - waitStart) < 1) {
-        // Very short busy wait - allows event loop to process
+      // Schedule a microtask to yield to event loop
+      // This is critical - it allows the fetch callbacks to be processed
+      var microtaskCompleted = false;
+      scheduleMicrotask(() {
+        microtaskCompleted = true;
+      });
+      
+      // Wait for microtask to complete - this yields to event loop
+      // Use a timeout to avoid infinite wait
+      var waitCount = 0;
+      while (!microtaskCompleted && waitCount < 1000) {
+        waitCount++;
+        // Very minimal busy wait
+        final waitStart = web.window.performance.now();
+        while ((web.window.performance.now() - waitStart) < 0.1) {
+          // Minimal wait
+        }
       }
       
       // Check elapsed time using wall clock time
