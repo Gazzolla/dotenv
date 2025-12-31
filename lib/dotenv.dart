@@ -33,7 +33,7 @@ import 'dotenv_io.dart' if (dart.library.html) 'dotenv_web.dart' as platform;
 ///     bool get hasEnv => env.isEveryDefined(_requiredEnvVars);
 
 /// Package version
-const String _packageVersion = '4.3.1';
+const String _packageVersion = '4.3.2';
 
 class DotEnv {
   /// If true, the underlying map will contain the entries of [Platform.environment],
