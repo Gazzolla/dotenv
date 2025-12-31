@@ -34,86 +34,131 @@ String _getAbsolutePath(String filename) {
 /// Platform-specific implementation for web platforms.
 /// Loads files via HTTP request using a synchronous approach.
 /// On web, files must be accessible via HTTP (e.g., in web/ directory).
+/// Tries to load from root first, then falls back to web/ directory.
 List<String> loadFile(String filename, bool quiet) {
-  final absolutePath = _getAbsolutePath(filename);
-  if (!quiet) {
-    _safeStderrWriteln('[dotenv] DEBUG: ========================================');
-    _safeStderrWriteln('[dotenv] DEBUG: Using WEB implementation (dotenv_web.dart)');
-    _safeStderrWriteln('[dotenv] DEBUG: File path: $absolutePath');
-    _safeStderrWriteln('[dotenv] DEBUG: ========================================');
+  // Lista de caminhos para tentar (raiz primeiro, depois web/)
+  final pathsToTry = <String>[];
+
+  if (filename.startsWith('/')) {
+    // Caminho absoluto - tenta diretamente
+    pathsToTry.add(filename);
+  } else {
+    // Tenta na raiz primeiro
+    pathsToTry.add('/$filename');
+    // Depois tenta relativo (web/)
+    pathsToTry.add(filename);
   }
 
+  for (var path in pathsToTry) {
+    final absolutePath = _getAbsolutePath(path);
+    if (!quiet) {
+      _safeStderrWriteln('[dotenv] DEBUG: ========================================');
+      _safeStderrWriteln('[dotenv] DEBUG: Using WEB implementation (dotenv_web.dart)');
+      _safeStderrWriteln('[dotenv] DEBUG: Attempting to load from: $absolutePath');
+      _safeStderrWriteln('[dotenv] DEBUG: ========================================');
+    }
+
+    final result = _tryLoadFile(absolutePath, path, quiet);
+    if (result != null) {
+      return result;
+    }
+  }
+
+  // Se nenhum caminho funcionou, retorna vazio
+  if (!quiet) {
+    _safeStderrWriteln('[dotenv] Load failed: could not find .env in root or web/ directory');
+    _safeStderrWriteln('[dotenv] Tried paths: ${pathsToTry.join(", ")}');
+  }
+  return [];
+}
+
+/// Tenta carregar um arquivo e retorna null se falhar
+List<String>? _tryLoadFile(String absolutePath, String originalPath, bool quiet) {
   try {
     // Use a completer to make async operation appear synchronous
     List<String>? result;
     bool completed = false;
+    bool success = false;
 
     if (!quiet) {
-      _safeStderrWriteln('[dotenv] DEBUG: Starting HTTP fetch for: $filename');
+      _safeStderrWriteln('[dotenv] DEBUG: Starting HTTP fetch for: $absolutePath');
     }
     final promise = web.window.fetch(absolutePath.toJS);
     promise.toDart.then((response) {
       if (!quiet) {
-        _safeStderrWriteln('[dotenv] DEBUG: HTTP response received');
+        _safeStderrWriteln('[dotenv] DEBUG: HTTP response received, status: ${response.status}');
       }
+
+      // Se não for sucesso (200-299), marca como falha
+      if (response.status < 200 || response.status >= 300) {
+        if (!quiet) {
+          _safeStderrWriteln('[dotenv] DEBUG: HTTP status ${response.status}, trying next path...');
+        }
+        completed = true;
+        return response.text().toDart; // Continua para tratar no próximo then
+      }
+
       return response.text().toDart;
     }).then((content) {
       final contentStr = content.toDart;
+
+      // Se status não foi sucesso, content pode estar vazio ou com erro
+      if (contentStr.isEmpty) {
+        if (!quiet) _safeStderrWriteln('[dotenv] DEBUG: File is empty or not found, trying next path...');
+        completed = true;
+        return;
+      }
+
       if (!quiet) {
         _safeStderrWriteln('[dotenv] DEBUG: Content length: ${contentStr.length}');
       }
-      if (contentStr.isEmpty) {
-        if (!quiet) _safeStderrWriteln('[dotenv] Load failed: file is empty: $filename');
-        result = [];
-      } else {
-        result = contentStr.split('\n');
-        if (!quiet) {
-          _safeStderrWriteln('[dotenv] DEBUG: Split into ${result?.length ?? 0} lines');
-        }
+
+      result = contentStr.split('\n');
+      success = true;
+      if (!quiet) {
+        _safeStderrWriteln('[dotenv] DEBUG: Successfully loaded from: $absolutePath');
+        _safeStderrWriteln('[dotenv] DEBUG: Split into ${result!.length} lines');
       }
       completed = true;
     }).catchError((e) {
       if (!quiet) {
-        _safeStderrWriteln('[dotenv] DEBUG: HTTP fetch error: $e');
+        _safeStderrWriteln('[dotenv] DEBUG: HTTP fetch error for $absolutePath: $e');
+        _safeStderrWriteln('[dotenv] DEBUG: Trying next path...');
       }
-      if (!quiet) {
-        _safeStderrWriteln('[dotenv] Load failed: $e');
-        _safeStderrWriteln('[dotenv] On web, ensure .env is in your web/ directory and accessible via HTTP');
-        _safeStderrWriteln('[dotenv] Alternative: Use build-time environment variables with --dart-define');
-      }
-      result = [];
       completed = true;
     });
 
     // Wait for the async operation to complete
     // This is a blocking wait that works in web context
     final stopwatch = Stopwatch()..start();
-    while (!completed && stopwatch.elapsedMilliseconds < 5000) {
+    while (!completed && stopwatch.elapsedMilliseconds < 3000) {
       // Allow async operations to complete by processing the event loop
       // Use a small delay to allow HTTP request to complete
       final startTime = web.window.performance.now();
       while ((web.window.performance.now() - startTime) < 50) {
         // Busy wait for ~50ms to allow async operations to process
       }
-      // Note: This is a workaround - true synchronous HTTP isn't possible on web
     }
 
     if (!completed) {
       if (!quiet) {
-        _safeStderrWriteln('[dotenv] Load timeout: could not load $filename within 5 seconds');
+        _safeStderrWriteln('[dotenv] DEBUG: Load timeout for $absolutePath, trying next path...');
       }
-      return [];
+      return null;
     }
 
-    if (!quiet) {
-      _safeStderrWriteln('[dotenv] DEBUG: HTTP fetch completed. Result: ${result?.length ?? 0} lines');
+    if (success && result != null) {
+      if (!quiet) {
+        _safeStderrWriteln('[dotenv] DEBUG: HTTP fetch completed. Result: ${result!.length} lines');
+      }
+      return result;
     }
-    return result ?? [];
+
+    return null;
   } catch (e) {
     if (!quiet) {
-      _safeStderrWriteln('[dotenv] Load failed: $e');
-      _safeStderrWriteln('[dotenv] On web, .env files must be served as static assets in the web/ directory');
+      _safeStderrWriteln('[dotenv] DEBUG: Exception loading $absolutePath: $e');
     }
-    return [];
+    return null;
   }
 }

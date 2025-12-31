@@ -37,6 +37,10 @@ EOF
 check_commit
 check_changelog
 
+# Generate version.dart from pubspec.yaml (without incrementing)
+# Pass the current version to avoid auto-increment
+dart run tool/generate_version.dart "$version"
+
 git tag --cleanup=whitespace -u "$GH_KEY_ID" v"$version" && \
 git push --tags && \
 pub publish
