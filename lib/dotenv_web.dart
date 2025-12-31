@@ -138,22 +138,38 @@ List<String>? _tryLoadFile(String absolutePath, String originalPath, bool quiet)
     // Wait for the async operation to complete
     // This is a blocking wait that works in web context
     // Use a longer timeout and better event loop processing
+    // The key is to use very short waits to allow the event loop to process
     final timeoutMs = 10000; // 10 seconds timeout
-    final maxIterations = timeoutMs ~/ 10; // Check every 10ms
-    int iterations = 0;
+    final startTime = web.window.performance.now();
+    int checkCount = 0;
+    const maxChecks = 2000; // Maximum number of checks
     
-    while (!completed && iterations < maxIterations) {
-      iterations++;
+    while (!completed && checkCount < maxChecks) {
+      checkCount++;
       
-      // Use performance.now() for more accurate timing
-      final startTime = web.window.performance.now();
-      // Wait 10ms - this allows the event loop to process
-      while ((web.window.performance.now() - startTime) < 10) {
-        // Small busy wait to allow event loop processing
+      // Use a very short wait (1ms) to allow event loop to process callbacks
+      // This is critical - longer waits block the event loop
+      final waitStart = web.window.performance.now();
+      while ((web.window.performance.now() - waitStart) < 1) {
+        // Very short busy wait - allows event loop to process
       }
       
-      // Double check completion status
-      if (completed) break;
+      // Check elapsed time using wall clock time
+      final elapsed = web.window.performance.now() - startTime;
+      if (elapsed > timeoutMs) {
+        if (!quiet) {
+          _safeStderrWriteln('[dotenv] DEBUG: Timeout after ${elapsed}ms (check #$checkCount)');
+        }
+        break;
+      }
+      
+      // Check completion status - this should be set by the promise callbacks
+      if (completed) {
+        if (!quiet) {
+          _safeStderrWriteln('[dotenv] DEBUG: Completed after ${elapsed}ms (check #$checkCount)');
+        }
+        break;
+      }
     }
 
     if (!completed) {
