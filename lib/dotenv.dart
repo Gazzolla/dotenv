@@ -122,8 +122,15 @@ class DotEnv {
       var lines = platform.loadFile(filename, quiet);
       if (!quiet) {
         stderr_impl.safeStderrWriteln('[dotenv] DEBUG: Loaded ${lines.length} lines from $filename');
+        for (var i = 0; i < lines.length; i++) {
+          stderr_impl.safeStderrWriteln('[dotenv] DEBUG: Line ${i + 1}: "${lines[i]}" (length: ${lines[i].length})');
+        }
       }
-      _map.addAll(psr.parse(lines));
+      final parsed = psr.parse(lines);
+      if (!quiet) {
+        stderr_impl.safeStderrWriteln('[dotenv] DEBUG: Parsed ${parsed.length} variables: ${parsed.keys.join(", ")}');
+      }
+      _map.addAll(parsed);
     }
 
     if (!quiet) {

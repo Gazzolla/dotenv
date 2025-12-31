@@ -113,11 +113,18 @@ List<String>? _tryLoadFile(String absolutePath, String originalPath, bool quiet)
         _safeStderrWriteln('[dotenv] DEBUG: Content length: ${contentStr.length}');
       }
 
-      result = contentStr.split('\n');
+      // Split by newlines and filter out empty lines
+      result = contentStr.split('\n')
+          .map((line) => line.trim())
+          .where((line) => line.isNotEmpty)
+          .toList();
       success = true;
       if (!quiet) {
         _safeStderrWriteln('[dotenv] DEBUG: Successfully loaded from: $absolutePath');
-        _safeStderrWriteln('[dotenv] DEBUG: Split into ${result!.length} lines');
+        _safeStderrWriteln('[dotenv] DEBUG: Split into ${result!.length} non-empty lines');
+        for (var i = 0; i < result!.length; i++) {
+          _safeStderrWriteln('[dotenv] DEBUG: Parsed line ${i + 1}: "${result![i]}"');
+        }
       }
       completed = true;
     }).catchError((e) {
@@ -130,14 +137,23 @@ List<String>? _tryLoadFile(String absolutePath, String originalPath, bool quiet)
 
     // Wait for the async operation to complete
     // This is a blocking wait that works in web context
-    final stopwatch = Stopwatch()..start();
-    while (!completed && stopwatch.elapsedMilliseconds < 3000) {
-      // Allow async operations to complete by processing the event loop
-      // Use a small delay to allow HTTP request to complete
+    // Use a longer timeout and better event loop processing
+    final timeoutMs = 10000; // 10 seconds timeout
+    final maxIterations = timeoutMs ~/ 10; // Check every 10ms
+    int iterations = 0;
+    
+    while (!completed && iterations < maxIterations) {
+      iterations++;
+      
+      // Use performance.now() for more accurate timing
       final startTime = web.window.performance.now();
-      while ((web.window.performance.now() - startTime) < 50) {
-        // Busy wait for ~50ms to allow async operations to process
+      // Wait 10ms - this allows the event loop to process
+      while ((web.window.performance.now() - startTime) < 10) {
+        // Small busy wait to allow event loop processing
       }
+      
+      // Double check completion status
+      if (completed) break;
     }
 
     if (!completed) {
