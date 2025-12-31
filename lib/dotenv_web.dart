@@ -37,36 +37,33 @@ String _getAbsolutePath(String filename) {
 /// On web, files must be accessible via HTTP (e.g., in web/ directory).
 /// Tries to load from root first, then falls back to web/ directory.
 List<String> loadFile(String filename, bool quiet) {
-  // Lista de caminhos para tentar (raiz primeiro, depois web/)
-  final pathsToTry = <String>[];
+  // Lista de caminhos absolutos únicos para tentar
+  final absolutePathsToTry = <String>{};
 
   if (filename.startsWith('/')) {
     // Caminho absoluto - tenta diretamente
-    pathsToTry.add(filename);
+    absolutePathsToTry.add(_getAbsolutePath(filename));
   } else {
     // Tenta na raiz primeiro
-    pathsToTry.add('/$filename');
+    absolutePathsToTry.add(_getAbsolutePath('/$filename'));
     // Depois tenta relativo (web/)
-    pathsToTry.add(filename);
+    absolutePathsToTry.add(_getAbsolutePath(filename));
   }
 
   if (!quiet) {
-    _safeStderrWriteln('[dotenv] DEBUG: ========================================');
-    _safeStderrWriteln('[dotenv] DEBUG: Using WEB implementation (dotenv_web.dart)');
-    _safeStderrWriteln('[dotenv] DEBUG: Will try paths: ${pathsToTry.join(", ")}');
-    _safeStderrWriteln('[dotenv] DEBUG: ========================================');
+    _safeStderrWriteln('[dotenv] DEBUG: Using WEB implementation');
+    _safeStderrWriteln('[dotenv] DEBUG: Will try ${absolutePathsToTry.length} unique path(s)');
   }
 
-  for (var path in pathsToTry) {
-    final absolutePath = _getAbsolutePath(path);
+  for (var absolutePath in absolutePathsToTry) {
     if (!quiet) {
       _safeStderrWriteln('[dotenv] DEBUG: Attempting to load from: $absolutePath');
     }
 
-    final result = _tryLoadFile(absolutePath, path, quiet);
+    final result = _tryLoadFile(absolutePath, filename, quiet);
     if (result != null && result.isNotEmpty) {
       if (!quiet) {
-        _safeStderrWriteln('[dotenv] DEBUG: Successfully loaded from: $absolutePath');
+        _safeStderrWriteln('[dotenv] DEBUG: Successfully loaded ${result.length} line(s) from: $absolutePath');
       }
       return result;
     }
@@ -74,8 +71,8 @@ List<String> loadFile(String filename, bool quiet) {
 
   // Se nenhum caminho funcionou, retorna vazio
   if (!quiet) {
-    _safeStderrWriteln('[dotenv] Load failed: could not find .env in root or web/ directory');
-    _safeStderrWriteln('[dotenv] Tried paths: ${pathsToTry.join(", ")}');
+    _safeStderrWriteln('[dotenv] Load failed: could not find .env');
+    _safeStderrWriteln('[dotenv] Tried paths: ${absolutePathsToTry.join(", ")}');
   }
   return [];
 }
@@ -88,22 +85,15 @@ List<String>? _tryLoadFile(String absolutePath, String originalPath, bool quiet)
     bool completed = false;
     bool success = false;
 
-    if (!quiet) {
-      _safeStderrWriteln('[dotenv] DEBUG: Starting HTTP fetch for: $absolutePath');
-    }
     final promise = web.window.fetch(absolutePath.toJS);
     promise.toDart.then((response) {
-      if (!quiet) {
-        _safeStderrWriteln('[dotenv] DEBUG: HTTP response received, status: ${response.status}');
-      }
-
       // Se não for sucesso (200-299), marca como falha
       if (response.status < 200 || response.status >= 300) {
         if (!quiet) {
           _safeStderrWriteln('[dotenv] DEBUG: HTTP status ${response.status}, trying next path...');
         }
         completed = true;
-        return response.text().toDart; // Continua para tratar no próximo then
+        return response.text().toDart;
       }
 
       return response.text().toDart;
@@ -112,13 +102,11 @@ List<String>? _tryLoadFile(String absolutePath, String originalPath, bool quiet)
 
       // Se status não foi sucesso, content pode estar vazio ou com erro
       if (contentStr.isEmpty) {
-        if (!quiet) _safeStderrWriteln('[dotenv] DEBUG: File is empty or not found, trying next path...');
+        if (!quiet) {
+          _safeStderrWriteln('[dotenv] DEBUG: File is empty, trying next path...');
+        }
         completed = true;
         return;
-      }
-
-      if (!quiet) {
-        _safeStderrWriteln('[dotenv] DEBUG: Content length: ${contentStr.length}');
       }
 
       // Split by newlines and filter out empty lines
@@ -127,18 +115,10 @@ List<String>? _tryLoadFile(String absolutePath, String originalPath, bool quiet)
           .where((line) => line.isNotEmpty)
           .toList();
       success = true;
-      if (!quiet) {
-        _safeStderrWriteln('[dotenv] DEBUG: Successfully loaded from: $absolutePath');
-        _safeStderrWriteln('[dotenv] DEBUG: Split into ${result!.length} non-empty lines');
-        for (var i = 0; i < result!.length; i++) {
-          _safeStderrWriteln('[dotenv] DEBUG: Parsed line ${i + 1}: "${result![i]}"');
-        }
-      }
       completed = true;
     }).catchError((e) {
       if (!quiet) {
-        _safeStderrWriteln('[dotenv] DEBUG: HTTP fetch error for $absolutePath: $e');
-        _safeStderrWriteln('[dotenv] DEBUG: Trying next path...');
+        _safeStderrWriteln('[dotenv] DEBUG: HTTP fetch error: $e');
       }
       completed = true;
     });
@@ -163,14 +143,14 @@ List<String>? _tryLoadFile(String absolutePath, String originalPath, bool quiet)
       });
       
       // Wait for microtask to complete - this yields to event loop
-      // Use a timeout to avoid infinite wait
-      var waitCount = 0;
-      while (!microtaskCompleted && waitCount < 1000) {
-        waitCount++;
-        // Very minimal busy wait
+      // The microtask will be processed by the event loop
+      var waitIterations = 0;
+      while (!microtaskCompleted && waitIterations < 100) {
+        waitIterations++;
+        // Very short wait to allow microtask processing
         final waitStart = web.window.performance.now();
-        while ((web.window.performance.now() - waitStart) < 0.1) {
-          // Minimal wait
+        while ((web.window.performance.now() - waitStart) < 0.01) {
+          // Minimal wait - allows event loop to process microtasks
         }
       }
       
@@ -178,16 +158,13 @@ List<String>? _tryLoadFile(String absolutePath, String originalPath, bool quiet)
       final elapsed = web.window.performance.now() - startTime;
       if (elapsed > timeoutMs) {
         if (!quiet) {
-          _safeStderrWriteln('[dotenv] DEBUG: Timeout after ${elapsed}ms (check #$checkCount)');
+          _safeStderrWriteln('[dotenv] DEBUG: Timeout after ${elapsed.toStringAsFixed(0)}ms');
         }
         break;
       }
       
       // Check completion status - this should be set by the promise callbacks
       if (completed) {
-        if (!quiet) {
-          _safeStderrWriteln('[dotenv] DEBUG: Completed after ${elapsed}ms (check #$checkCount)');
-        }
         break;
       }
     }
@@ -200,9 +177,6 @@ List<String>? _tryLoadFile(String absolutePath, String originalPath, bool quiet)
     }
 
     if (success && result != null) {
-      if (!quiet) {
-        _safeStderrWriteln('[dotenv] DEBUG: HTTP fetch completed. Result: ${result!.length} lines');
-      }
       return result;
     }
 
