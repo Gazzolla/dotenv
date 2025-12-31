@@ -5,18 +5,7 @@ import 'parser.dart';
 
 // Conditional imports for web support
 import 'dotenv_io.dart' if (dart.library.html) 'dotenv_web.dart' as platform;
-
-/// Safely writes to stderr, falling back to print on web platforms
-void _safeStderrWriteln(String message) {
-  try {
-    // Try to access stderr - this may throw on web platforms
-    final stderrStream = stderr;
-    stderrStream.writeln(message);
-  } catch (e) {
-    // On web, stderr may not be available, use print as fallback
-    print(message);
-  }
-}
+import 'stderr_io.dart' if (dart.library.html) 'stderr_web.dart' as stderr_impl;
 
 /// Loads key-value pairs from a file into a [Map<String, String>].
 ///
@@ -60,7 +49,7 @@ class DotEnv {
 
   DotEnv({this.includePlatformEnvironment = false, this.quiet = false}) {
     if (!quiet) {
-      _safeStderrWriteln('[dotenv] Package version: $_packageVersion');
+      stderr_impl.safeStderrWriteln('[dotenv] Package version: $_packageVersion');
     }
     if (includePlatformEnvironment) _addPlatformEnvironment();
   }
@@ -115,29 +104,29 @@ class DotEnv {
     Parser psr = const Parser(),
   ]) {
     if (!quiet) {
-      _safeStderrWriteln('[dotenv] ========================================');
-      _safeStderrWriteln('[dotenv] Package version: $_packageVersion');
-      _safeStderrWriteln('[dotenv] DEBUG: ========================================');
-      _safeStderrWriteln('[dotenv] DEBUG: Starting load operation');
-      _safeStderrWriteln('[dotenv] DEBUG: Platform: ${Platform.operatingSystem}');
-      _safeStderrWriteln('[dotenv] DEBUG: Platform environment available: ${Platform.environment.isNotEmpty}');
-      _safeStderrWriteln('[dotenv] DEBUG: dart.library.html available: ${_isWebPlatform()}');
-      _safeStderrWriteln('[dotenv] DEBUG: ========================================');
+      stderr_impl.safeStderrWriteln('[dotenv] ========================================');
+      stderr_impl.safeStderrWriteln('[dotenv] Package version: $_packageVersion');
+      stderr_impl.safeStderrWriteln('[dotenv] DEBUG: ========================================');
+      stderr_impl.safeStderrWriteln('[dotenv] DEBUG: Starting load operation');
+      stderr_impl.safeStderrWriteln('[dotenv] DEBUG: Platform: ${Platform.operatingSystem}');
+      stderr_impl.safeStderrWriteln('[dotenv] DEBUG: Platform environment available: ${Platform.environment.isNotEmpty}');
+      stderr_impl.safeStderrWriteln('[dotenv] DEBUG: dart.library.html available: ${_isWebPlatform()}');
+      stderr_impl.safeStderrWriteln('[dotenv] DEBUG: ========================================');
     }
 
     for (var filename in filenames) {
       if (!quiet) {
-        _safeStderrWriteln('[dotenv] DEBUG: Attempting to load file: $filename');
+        stderr_impl.safeStderrWriteln('[dotenv] DEBUG: Attempting to load file: $filename');
       }
       var lines = platform.loadFile(filename, quiet);
       if (!quiet) {
-        _safeStderrWriteln('[dotenv] DEBUG: Loaded ${lines.length} lines from $filename');
+        stderr_impl.safeStderrWriteln('[dotenv] DEBUG: Loaded ${lines.length} lines from $filename');
       }
       _map.addAll(psr.parse(lines));
     }
 
     if (!quiet) {
-      _safeStderrWriteln('[dotenv] DEBUG: Load complete. Total variables: ${_map.length}');
+      stderr_impl.safeStderrWriteln('[dotenv] DEBUG: Load complete. Total variables: ${_map.length}');
     }
   }
 
