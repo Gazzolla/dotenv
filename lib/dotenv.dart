@@ -31,6 +31,10 @@ import 'dotenv_io.dart' if (dart.library.html) 'dotenv_web.dart' as platform;
 ///
 ///     const _requiredEnvVars = ['host', 'port'];
 ///     bool get hasEnv => env.isEveryDefined(_requiredEnvVars);
+
+/// Package version
+const String _packageVersion = '4.3.1';
+
 class DotEnv {
   /// If true, the underlying map will contain the entries of [Platform.environment],
   /// even after calling [clear].
@@ -43,6 +47,9 @@ class DotEnv {
   final _map = <String, String>{};
 
   DotEnv({this.includePlatformEnvironment = false, this.quiet = false}) {
+    if (!quiet) {
+      stderr.writeln('[dotenv] Package version: $_packageVersion');
+    }
     if (includePlatformEnvironment) _addPlatformEnvironment();
   }
 
@@ -96,6 +103,8 @@ class DotEnv {
     Parser psr = const Parser(),
   ]) {
     if (!quiet) {
+      stderr.writeln('[dotenv] ========================================');
+      stderr.writeln('[dotenv] Package version: $_packageVersion');
       stderr.writeln('[dotenv] DEBUG: ========================================');
       stderr.writeln('[dotenv] DEBUG: Starting load operation');
       stderr.writeln('[dotenv] DEBUG: Platform: ${Platform.operatingSystem}');
