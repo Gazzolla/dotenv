@@ -7,4 +7,3 @@ String getPlatformName() {
 bool isWebPlatform() {
   return false;
 }
-

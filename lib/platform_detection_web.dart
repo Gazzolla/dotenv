@@ -5,4 +5,3 @@ String getPlatformName() {
 bool isWebPlatform() {
   return true;
 }
-
