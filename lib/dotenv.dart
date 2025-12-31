@@ -6,6 +6,7 @@ import 'parser.dart';
 // Conditional imports for web support
 import 'dotenv_io.dart' if (dart.library.html) 'dotenv_web.dart' as platform;
 import 'stderr_io.dart' if (dart.library.html) 'stderr_web.dart' as stderr_impl;
+import 'platform_detection_io.dart' if (dart.library.html) 'platform_detection_web.dart' as platform_detection;
 
 /// Loads key-value pairs from a file into a [Map<String, String>].
 ///
@@ -48,9 +49,6 @@ class DotEnv {
   final _map = <String, String>{};
 
   DotEnv({this.includePlatformEnvironment = false, this.quiet = false}) {
-    if (!quiet) {
-      stderr_impl.safeStderrWriteln('[dotenv] Package version: $_packageVersion');
-    }
     if (includePlatformEnvironment) _addPlatformEnvironment();
   }
 
@@ -108,9 +106,11 @@ class DotEnv {
       stderr_impl.safeStderrWriteln('[dotenv] Package version: $_packageVersion');
       stderr_impl.safeStderrWriteln('[dotenv] DEBUG: ========================================');
       stderr_impl.safeStderrWriteln('[dotenv] DEBUG: Starting load operation');
-      stderr_impl.safeStderrWriteln('[dotenv] DEBUG: Platform: ${Platform.operatingSystem}');
-      stderr_impl.safeStderrWriteln('[dotenv] DEBUG: Platform environment available: ${Platform.environment.isNotEmpty}');
-      stderr_impl.safeStderrWriteln('[dotenv] DEBUG: dart.library.html available: ${_isWebPlatform()}');
+      stderr_impl.safeStderrWriteln('[dotenv] DEBUG: Platform: ${platform_detection.getPlatformName()}');
+      stderr_impl
+          .safeStderrWriteln('[dotenv] DEBUG: Platform environment available: ${Platform.environment.isNotEmpty}');
+      stderr_impl
+          .safeStderrWriteln('[dotenv] DEBUG: dart.library.html available: ${platform_detection.isWebPlatform()}');
       stderr_impl.safeStderrWriteln('[dotenv] DEBUG: ========================================');
     }
 
@@ -131,15 +131,4 @@ class DotEnv {
   }
 
   void _addPlatformEnvironment() => _map.addAll(Platform.environment);
-
-  /// Helper to detect if web platform is available
-  bool _isWebPlatform() {
-    try {
-      // Try to check if dart.library.html is available
-      // This is a compile-time check, but we can try to detect at runtime
-      return false; // Will be determined by conditional import
-    } catch (e) {
-      return false;
-    }
-  }
 }

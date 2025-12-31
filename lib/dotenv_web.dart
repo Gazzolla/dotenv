@@ -8,14 +8,38 @@ void _safeStderrWriteln(String message) {
   print(message);
 }
 
+/// Converts a relative path to an absolute URL on web platforms
+String _getAbsolutePath(String filename) {
+  try {
+    final location = web.window.location;
+
+    if (filename.startsWith('http://') || filename.startsWith('https://') || filename.startsWith('//')) {
+      return filename;
+    }
+
+    final href = (location.href as JSString).toDart;
+    final baseUri = Uri.parse(href);
+    final basePath = baseUri.resolve('./').toString();
+
+    if (filename.startsWith('/')) {
+      return '${baseUri.scheme}://${baseUri.host}${baseUri.hasPort ? ':${baseUri.port}' : ''}$filename';
+    }
+
+    return Uri.parse(basePath).resolve(filename).toString();
+  } catch (e) {
+    return filename;
+  }
+}
+
 /// Platform-specific implementation for web platforms.
 /// Loads files via HTTP request using a synchronous approach.
 /// On web, files must be accessible via HTTP (e.g., in web/ directory).
 List<String> loadFile(String filename, bool quiet) {
+  final absolutePath = _getAbsolutePath(filename);
   if (!quiet) {
     _safeStderrWriteln('[dotenv] DEBUG: ========================================');
     _safeStderrWriteln('[dotenv] DEBUG: Using WEB implementation (dotenv_web.dart)');
-    _safeStderrWriteln('[dotenv] DEBUG: File path: $filename');
+    _safeStderrWriteln('[dotenv] DEBUG: File path: $absolutePath');
     _safeStderrWriteln('[dotenv] DEBUG: ========================================');
   }
 
@@ -27,7 +51,7 @@ List<String> loadFile(String filename, bool quiet) {
     if (!quiet) {
       _safeStderrWriteln('[dotenv] DEBUG: Starting HTTP fetch for: $filename');
     }
-    final promise = web.window.fetch(filename.toJS);
+    final promise = web.window.fetch(absolutePath.toJS);
     promise.toDart.then((response) {
       if (!quiet) {
         _safeStderrWriteln('[dotenv] DEBUG: HTTP response received');
