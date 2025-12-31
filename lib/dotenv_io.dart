@@ -2,7 +2,7 @@ import 'package:universal_io/io.dart';
 
 /// Platform-specific implementation for non-web platforms (IO).
 /// Loads files from the file system.
-List<String> loadFile(String filename, bool quiet) {
+Future<List<String>> loadFile(String filename, bool quiet) async {
   if (!quiet) {
     stderr.writeln('[dotenv] DEBUG: ========================================');
     stderr.writeln('[dotenv] DEBUG: Using IO implementation (dotenv_io.dart)');
@@ -30,7 +30,7 @@ List<String> loadFile(String filename, bool quiet) {
       if (!quiet) {
         stderr.writeln('[dotenv] DEBUG: File exists, reading lines...');
       }
-      var lines = f.readAsLinesSync();
+      var lines = await f.readAsLines();
       if (!quiet) {
         stderr.writeln('[dotenv] DEBUG: Successfully read ${lines.length} lines');
       }

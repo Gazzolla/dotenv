@@ -1,7 +1,8 @@
 import 'package:dotenv/dotenv.dart';
 
-void main() {
-  var env = DotEnv(includePlatformEnvironment: true)..load();
+void main() async {
+  var env = DotEnv(includePlatformEnvironment: true);
+  await env.load();
 
   p('read all vars? ${env.isEveryDefined(['foo', 'baz'])}');
 

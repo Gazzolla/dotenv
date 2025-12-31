@@ -8,7 +8,7 @@ import 'package:dotenv/dotenv.dart';
 /// ## usage
 ///
 ///     dart pub global run dotenv --help
-void main(List<String> argv) {
+void main(List<String> argv) async {
   var opts = _argPsr.parse(argv);
 
   if (opts.wasParsed(_flagHelp)) return _usage();
@@ -18,7 +18,7 @@ void main(List<String> argv) {
 
   var quiet = opts[_flagQuiet] as bool;
 
-  _loadAndPrint(
+  await _loadAndPrint(
       DotEnv(includePlatformEnvironment: withProcessVars, quiet: quiet), files);
 }
 
@@ -44,8 +44,8 @@ final _argPsr = new ArgParser()
       help: 'Suppress "file not found" messages on stderr.',
       defaultsTo: false);
 
-void _loadAndPrint(DotEnv dotEnv, List<String> files) {
-  dotEnv.load(files);
+Future<void> _loadAndPrint(DotEnv dotEnv, List<String> files) async {
+  await dotEnv.load(files);
   //ignore: invalid_use_of_visible_for_testing_member
   _p(dotEnv.map);
 }

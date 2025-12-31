@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:js_interop';
 // ignore: uri_does_not_exist
 import 'package:web/web.dart' as web;
@@ -33,10 +32,10 @@ String _getAbsolutePath(String filename) {
 }
 
 /// Platform-specific implementation for web platforms.
-/// Loads files via HTTP request using a synchronous approach.
+/// Loads files via HTTP request using an asynchronous approach.
 /// On web, files must be accessible via HTTP (e.g., in web/ directory).
 /// Tries to load from root first, then falls back to web/ directory.
-List<String> loadFile(String filename, bool quiet) {
+Future<List<String>> loadFile(String filename, bool quiet) async {
   // Lista de caminhos absolutos únicos para tentar
   final absolutePathsToTry = <String>{};
 
@@ -60,7 +59,7 @@ List<String> loadFile(String filename, bool quiet) {
       _safeStderrWriteln('[dotenv] DEBUG: Attempting to load from: $absolutePath');
     }
 
-    final result = _tryLoadFile(absolutePath, filename, quiet);
+    final result = await _tryLoadFile(absolutePath, filename, quiet);
     if (result != null && result.isNotEmpty) {
       if (!quiet) {
         _safeStderrWriteln('[dotenv] DEBUG: Successfully loaded ${result.length} line(s) from: $absolutePath');
@@ -78,112 +77,39 @@ List<String> loadFile(String filename, bool quiet) {
 }
 
 /// Tenta carregar um arquivo e retorna null se falhar
-List<String>? _tryLoadFile(String absolutePath, String originalPath, bool quiet) {
+Future<List<String>?> _tryLoadFile(String absolutePath, String originalPath, bool quiet) async {
   try {
-    // Use a completer to make async operation appear synchronous
-    List<String>? result;
-    bool completed = false;
-    bool success = false;
-
-    final promise = web.window.fetch(absolutePath.toJS);
-    promise.toDart.then((response) {
-      // Se não for sucesso (200-299), marca como falha
-      if (response.status < 200 || response.status >= 300) {
-        if (!quiet) {
-          _safeStderrWriteln('[dotenv] DEBUG: HTTP status ${response.status}, trying next path...');
-        }
-        completed = true;
-        return response.text().toDart;
-      }
-
-      return response.text().toDart;
-    }).then((content) {
-      final contentStr = content.toDart;
-
-      // Se status não foi sucesso, content pode estar vazio ou com erro
-      if (contentStr.isEmpty) {
-        if (!quiet) {
-          _safeStderrWriteln('[dotenv] DEBUG: File is empty, trying next path...');
-        }
-        completed = true;
-        return;
-      }
-
-      // Split by newlines and filter out empty lines
-      result = contentStr.split('\n')
-          .map((line) => line.trim())
-          .where((line) => line.isNotEmpty)
-          .toList();
-      success = true;
-      completed = true;
-    }).catchError((e) {
-      if (!quiet) {
-        _safeStderrWriteln('[dotenv] DEBUG: HTTP fetch error: $e');
-      }
-      completed = true;
-    });
-
-    // Wait for the async operation to complete
-    // This is a blocking wait that works in web context
-    // The key is to use scheduleMicrotask to yield to event loop
-    // This allows fetch callbacks to be processed
-    final timeoutMs = 10000; // 10 seconds timeout
-    final startTime = web.window.performance.now();
-    int checkCount = 0;
-    const maxChecks = 20000; // Maximum number of checks
+    final response = await web.window.fetch(absolutePath.toJS).toDart;
     
-    while (!completed && checkCount < maxChecks) {
-      checkCount++;
-      
-      // Schedule a microtask to yield to event loop
-      // This is critical - it allows the fetch callbacks to be processed
-      var microtaskCompleted = false;
-      scheduleMicrotask(() {
-        microtaskCompleted = true;
-      });
-      
-      // Wait for microtask to complete - this yields to event loop
-      // The microtask will be processed by the event loop
-      var waitIterations = 0;
-      while (!microtaskCompleted && waitIterations < 100) {
-        waitIterations++;
-        // Very short wait to allow microtask processing
-        final waitStart = web.window.performance.now();
-        while ((web.window.performance.now() - waitStart) < 0.01) {
-          // Minimal wait - allows event loop to process microtasks
-        }
-      }
-      
-      // Check elapsed time using wall clock time
-      final elapsed = web.window.performance.now() - startTime;
-      if (elapsed > timeoutMs) {
-        if (!quiet) {
-          _safeStderrWriteln('[dotenv] DEBUG: Timeout after ${elapsed.toStringAsFixed(0)}ms');
-        }
-        break;
-      }
-      
-      // Check completion status - this should be set by the promise callbacks
-      if (completed) {
-        break;
-      }
-    }
-
-    if (!completed) {
+    // Se não for sucesso (200-299), retorna null
+    if (response.status < 200 || response.status >= 300) {
       if (!quiet) {
-        _safeStderrWriteln('[dotenv] DEBUG: Load timeout for $absolutePath, trying next path...');
+        _safeStderrWriteln('[dotenv] DEBUG: HTTP status ${response.status}, trying next path...');
       }
       return null;
     }
 
-    if (success && result != null) {
-      return result;
+    final content = await response.text().toDart;
+    final contentStr = content.toDart;
+
+    // Se content estiver vazio, retorna null
+    if (contentStr.isEmpty) {
+      if (!quiet) {
+        _safeStderrWriteln('[dotenv] DEBUG: File is empty, trying next path...');
+      }
+      return null;
     }
 
-    return null;
+    // Split by newlines and filter out empty lines
+    final result = contentStr.split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList();
+    
+    return result;
   } catch (e) {
     if (!quiet) {
-      _safeStderrWriteln('[dotenv] DEBUG: Exception loading $absolutePath: $e');
+      _safeStderrWriteln('[dotenv] DEBUG: HTTP fetch error: $e');
     }
     return null;
   }

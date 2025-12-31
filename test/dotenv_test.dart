@@ -60,8 +60,8 @@ void main() {
     });
 
     group('load', () {
-      test('it loads the file', () {
-        subj.load(['test/fixtures/.test_env']);
+      test('it loads the file', () async {
+        await subj.load(['test/fixtures/.test_env']);
         expect(subj['some_test'], 'value');
       });
     });

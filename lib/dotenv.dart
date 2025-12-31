@@ -22,9 +22,9 @@ import 'platform_detection_io.dart' if (dart.library.html) 'platform_detection_w
 ///
 ///     import 'package:dotenv/dotenv.dart';
 ///
-///     void main() {
-///       var env = DotEnv(includePlatformEnvironment: true)
-///         ..load('path/to/my/.env');
+///     void main() async {
+///       var env = DotEnv(includePlatformEnvironment: true);
+///       await env.load('path/to/my/.env');
 ///       var foo = env['foo'];
 ///       var homeDir = env['HOME'];
 ///       // ...
@@ -98,10 +98,10 @@ class DotEnv {
   /// On web, files are loaded via HTTP. On other platforms, files are loaded from the file system.
   ///
   /// Logs to [stderr] if any file does not exist; see [quiet].
-  void load([
+  Future<void> load([
     Iterable<String> filenames = const ['.env'],
     Parser psr = const Parser(),
-  ]) {
+  ]) async {
     if (!quiet) {
       stderr_impl.safeStderrWriteln('[dotenv] ========================================');
       stderr_impl.safeStderrWriteln('[dotenv] Package version: $_packageVersion');
@@ -119,7 +119,7 @@ class DotEnv {
       if (!quiet) {
         stderr_impl.safeStderrWriteln('[dotenv] DEBUG: Attempting to load file: $filename');
       }
-      var lines = platform.loadFile(filename, quiet);
+      var lines = await platform.loadFile(filename, quiet);
       if (!quiet) {
         stderr_impl.safeStderrWriteln('[dotenv] DEBUG: Loaded ${lines.length} lines from $filename');
         for (var i = 0; i < lines.length; i++) {
